@@ -72,6 +72,11 @@ class NeuroQueryModel(object):
             str(model_dir)
         )
         mask_img = image.load_img(str(model_dir / "mask_img.nii.gz"))
+        dict_file = model_dir / "dictionary.npy"
+        if dict_file.is_file():
+            dictionary = np.load(str(dict_file))
+        else:
+            dictionary = None
         corpus_tfidf = model_dir / "corpus_tfidf.npz"
         corpus_metadata = model_dir / "corpus_metadata.csv"
         if corpus_tfidf.is_file() and corpus_metadata.is_file():
@@ -82,7 +87,8 @@ class NeuroQueryModel(object):
             )
         else:
             corpus_info = None
-        return cls(vectorizer, regression, mask_img, corpus_info=corpus_info)
+        return cls(vectorizer, regression, mask_img, corpus_info=corpus_info,
+                   dictionary=dictionary)
 
     def to_data_dir(self, model_dir):
         """Save the model so it can later be loaded with `from_data_dir`."""
@@ -93,6 +99,8 @@ class NeuroQueryModel(object):
         self._get_masker().mask_img_.to_filename(
             str(model_dir / "mask_img.nii.gz")
         )
+        if self.dictionary is not None:
+            np.save(str(model_dir / "dictionary.npy"), self.dictionary)
         if self.corpus_info is not None:
             sparse.save_npz(
                 str(model_dir / "corpus_tfidf.npz"),
@@ -103,12 +111,14 @@ class NeuroQueryModel(object):
             )
 
     def __init__(
-        self, vectorizer, smoothed_regression, mask_img, corpus_info=None
+            self, vectorizer, smoothed_regression, mask_img, corpus_info=None,
+            dictionary=None
     ):
         self.vectorizer = vectorizer
         self.smoothed_regression = smoothed_regression
         self.mask_img = mask_img
         self.corpus_info = corpus_info
+        self.dictionary = dictionary
 
     def full_vocabulary(self):
         """All the terms recognized by the model."""
@@ -197,7 +207,14 @@ class NeuroQueryModel(object):
         raw_tfidf = self.vectorizer.transform(documents)
         raw_tfidf = normalize(raw_tfidf, copy=False)
         self.smoothed_regression.regression_.intercept_ = 0.0
-        z_scores = self.smoothed_regression.transform_to_z_maps(raw_tfidf)
+        # z_scores = self.smoothed_regression.transform_to_z_maps(raw_tfidf)
+        pred = self.smoothed_regression.predict(raw_tfidf)
+        pred_var = self.smoothed_regression.prediction_variance(raw_tfidf)
+        if self.dictionary is not None:
+            pred = pred.dot(self.dictionary)
+            pred_var = pred_var.dot(self.dictionary ** 2)
+        pred_std = np.maximum(np.sqrt(pred_var), 1e-24)
+        z_scores = pred / pred_std
         masker = self._get_masker()
         z_maps_unmasked = list(map(masker.inverse_transform, z_scores))
         smoothed_tfidf = self.smoothed_regression.smoothing_.transform(

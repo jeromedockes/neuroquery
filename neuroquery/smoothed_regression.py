@@ -61,6 +61,10 @@ class SmoothedRegression(BaseEstimator, RegressorMixin):
         X = self.smoothing_.transform(X)
         return self.regression_.predict(X)
 
+    def prediction_variance(self, X):
+        X = self.smoothing_.transform(X)
+        return self.regression_.prediction_variance(X)
+
     def transform_to_z_maps(self, X):
         X = self.smoothing_.transform(X)
         return self.regression_.transform_to_z_maps(X)
