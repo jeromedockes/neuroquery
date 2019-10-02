@@ -154,11 +154,13 @@ class AdaptiveRidge(RidgeGCV):
         store_M=False,
         regularize_var=True,
         energy_order=None,
+        feature_cutoff=2.,
     ):
         super().__init__(alphas=alphas, store_M=store_M)
         self.use_positive_part = use_positive_part
         self.regularize_var = regularize_var
         self.energy_order = energy_order
+        self.feature_cutoff = feature_cutoff
 
     def _compute_feat_penalty(self, X, Y):
         z_energy = _linreg_energy(
@@ -170,7 +172,8 @@ class AdaptiveRidge(RidgeGCV):
             order=self.energy_order,
         )
         self.feat_penalty_ = 1 / np.maximum(
-            z_energy - (z_energy.mean() + 2 * z_energy.std()), 0.001
+            z_energy - (z_energy.mean()
+                        + self.feature_cutoff * z_energy.std()), 0.001
         )
         self.feat_penalty_ /= self.feat_penalty_.min()
 
@@ -183,11 +186,13 @@ class SelectiveRidge(RidgeGCV):
         store_M=False,
         regularize_var=True,
         energy_order=None,
+        feature_cutoff=2.,
     ):
         super().__init__(alphas=alphas, store_M=store_M)
         self.use_positive_part = use_positive_part
         self.regularize_var = regularize_var
         self.energy_order = energy_order
+        self.feature_cutoff = feature_cutoff
 
     def fit(self, X, Y):
         self.original_n_features_ = X.shape[1]
@@ -196,6 +201,7 @@ class SelectiveRidge(RidgeGCV):
             use_positive_part=self.use_positive_part,
             regularize_var=self.regularize_var,
             energy_order=self.energy_order,
+            feature_cutoff=self.feature_cutoff
         ).fit(X, Y)
         self.selected_features_ = np.arange(X.shape[1])[
             adapt.feat_penalty_ < adapt.feat_penalty_.max()

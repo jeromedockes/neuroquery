@@ -40,20 +40,23 @@ class SmoothedRegression(BaseEstimator, RegressorMixin):
         alphas=ridge._DEFAULT_ALPHAS,
         n_components=300,
         smoothing_weight=0.1,
+        feature_cutoff=2.
     ):
         self.alphas = alphas
         self.n_components = n_components
         self.smoothing_weight = smoothing_weight
+        self.feature_cutoff = feature_cutoff
 
     def fit(self, X, Y):
         if sparse.issparse(X):
             X = X.A
         self.smoothing_ = nmf.CovarianceSmoothing(
             n_components=self.n_components,
-            smoothing_weight=self.smoothing_weight,
+            smoothing_weight=self.smoothing_weight
         ).fit(X)
         self.regression_ = ridge.SelectiveRidge(
-            alphas=self.alphas, store_M=True
+            alphas=self.alphas, store_M=True,
+            feature_cutoff=self.feature_cutoff
         ).fit(X, Y)
         return self
 
